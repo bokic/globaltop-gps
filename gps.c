@@ -154,7 +154,7 @@ void gps_add_data(const char buffer[], int len)
 
             if (part2 > 0)
             {
-                memcpy(gps_buffer, buffer, (unsigned long)part2);
+                memcpy(gps_buffer, buffer + part1, (unsigned long)part2);
             }
 
             gps_buffer_append_pointer = part2;
