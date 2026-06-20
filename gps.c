@@ -66,7 +66,12 @@ char *_strtok(char *str, const char search[])
         }
         else
         {
+            char *ret = g_str;
             g_str = NULL;
+            if (strlen(ret) > 0)
+            {
+                return ret;
+            }
         }
     }
 
@@ -227,7 +232,7 @@ void gps_process_data()
                 pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) ground_course = (float)atof(pch);
                 pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) date = atoi(pch);
                 pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) magnetic_variation = (float)atof(pch);
-                pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) magnetic_variation_direction = pch[0];
+                pch = _strtok(NULL, ",*"); if ((pch)&&(strlen(pch) > 0)) magnetic_variation_direction = pch[0];
                 pch = _strtok(NULL, "*"); if ((pch)&&(strlen(pch) > 0)) mode = pch[0];
                 pch = _strtok(NULL, "\r"); if ((pch)&&(strlen(pch) > 0)) checksum = (int)strtol(pch, NULL, 16);
 
@@ -257,7 +262,7 @@ void gps_process_data()
                 pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) speed1 = (float)atof(pch);
                 pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) unit1 = pch[0];
                 pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) speed2 = (float)atof(pch);
-                pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) unit2 = pch[0];
+                pch = _strtok(NULL, ",*"); if ((pch)&&(strlen(pch) > 0)) unit2 = pch[0];
                 pch = _strtok(NULL, "*"); if ((pch)&&(strlen(pch) > 0)) mode = pch[0];
                 pch = _strtok(NULL, "\r"); if ((pch)&&(strlen(pch) > 0)) checksum = (int)strtol(pch, NULL, 16);
 
@@ -295,8 +300,8 @@ void gps_process_data()
                 pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) altitude = (float)atof(pch);
                 pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) altitude_units = pch[0];
                 pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) geoidal_separation = (float)atof(pch);
-                pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) geoidal_units = pch[0];
-                pch = _strtok(NULL, "*"); if ((pch)&&(strlen(pch) > 0)) age_of_diff_correction = (float)atof(pch);
+                pch = _strtok(NULL, ",*"); if ((pch)&&(strlen(pch) > 0)) geoidal_units = pch[0];
+                pch = _strtok(NULL, ",*"); if ((pch)&&(strlen(pch) > 0)) age_of_diff_correction = (float)atof(pch);
                 pch = _strtok(NULL, "\r"); if ((pch)&&(strlen(pch) > 0)) checksum = (int)strtol(pch, NULL, 16);
 
                 gps_callback_GPGGA(utc, latitude, ns_indicator, longitude, ew_indicator, position_fix_indicator, satelites_used, hdop, altitude, altitude_units, geoidal_separation, geoidal_units, age_of_diff_correction);
@@ -321,7 +326,7 @@ void gps_process_data()
                     { pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) channels[ch] = (char)atoi(pch); }
                 pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) pdop = (float)atof(pch);
                 pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) hdop = (float)atof(pch);
-                pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) vdop = (float)atof(pch);
+                pch = _strtok(NULL, ",*"); if ((pch)&&(strlen(pch) > 0)) vdop = (float)atof(pch);
                 pch = _strtok(NULL, "\r"); if ((pch)&&(strlen(pch) > 0)) checksum = (int)strtol(pch, NULL, 16);
 
                 gps_callback_GPGSA(mode1, mode2, channels, pdop, hdop, vdop);
@@ -347,7 +352,7 @@ void gps_process_data()
                     pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) satelitte_id[c] = (char)atoi(pch);
                     pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) elevation[c] = (char)atoi(pch);
                     pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) azimuth[c] = (char)atoi(pch);
-                    pch = _strtok(NULL, ","); if ((pch)&&(strlen(pch) > 0)) snr[c] = (char)atoi(pch);
+                    pch = _strtok(NULL, ",*"); if ((pch)&&(strlen(pch) > 0)) snr[c] = (char)atoi(pch);
                 }
 
                 gps_callback_GPGSV(number_of_messages, message_number, satelitte_id, elevation, azimuth, snr);
