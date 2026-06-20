@@ -79,14 +79,19 @@ int gps_buffer_indexOf(const char str[])
 
     if (slen > 0)
     {
-        int ilen = gps_buffer_append_pointer - gps_buffer_processing_pointer - slen;
-
-        while(ilen < 0)
+        int occupied = gps_buffer_append_pointer - gps_buffer_processing_pointer;
+        if (occupied < 0)
         {
-            ilen += GPS_BUFFER_SIZE;
+            occupied += GPS_BUFFER_SIZE;
         }
 
-        for(int i = 0; i < ilen; i++)
+        int limit = occupied - slen;
+        if (limit < 0)
+        {
+            return -1;
+        }
+
+        for(int i = 0; i <= limit; i++)
         {
             bool found = true;
 
