@@ -36,6 +36,11 @@ bool gps_is_packet_valid(const char *packet)
         current_checksum ^= packet[c];
     }
 
+    if (packet[c + 1] == '\0' || packet[c + 2] == '\0')
+    {
+        return false;
+    }
+
     checksumStr[0] = packet[c + 1];
     checksumStr[1] = packet[c + 2];
     checksumStr[2] = 0;
