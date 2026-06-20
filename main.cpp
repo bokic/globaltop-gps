@@ -14,22 +14,22 @@
 
 using namespace std;
 
-void callback_GPRMC(float utc, char status, float latitude, char ns_indicator, float longitude, char ew_indicator, float ground_speed, float ground_course, int date, float magnetic_variation, char magnetic_variation_direction, char mode)
+void callback_GPRMC(double utc, char status, double latitude, char ns_indicator, double longitude, char ew_indicator, double ground_speed, double ground_course, int date, double magnetic_variation, char magnetic_variation_direction, char mode)
 {
     return;
 }
 
-void callback_GPGGA(float utc, float latitude, char ns_indicator, float longitude, char ew_indicator, char position_fix_indicator, int satelites_used, float hdop, float altitude, char altitude_units, float geoidal_separation, char geoidal_units, float age_of_diff_correction)
+void callback_GPGGA(double utc, double latitude, char ns_indicator, double longitude, char ew_indicator, char position_fix_indicator, int satelites_used, double hdop, double altitude, char altitude_units, double geoidal_separation, char geoidal_units, double age_of_diff_correction)
 {
     return;
 }
 
-void callback_GPVTG(float course1, char reference1, float course2, char reference2, float speed1, char unit1, float speed2, char unit2, char mode)
+void callback_GPVTG(double course1, char reference1, double course2, char reference2, double speed1, char unit1, double speed2, char unit2, char mode)
 {
     return;
 }
 
-void callback_GPGSA(char mode1, char mode2, char channels[12], float pdop, float hdop, float vdop)
+void callback_GPGSA(char mode1, char mode2, char channels[12], double pdop, double hdop, double vdop)
 {
     return;
 }
@@ -42,8 +42,10 @@ void callback_GPGSV(uint8_t number_of_messages, uint8_t message_number, uint8_t 
 int main()
 {
     QString portname;
+    gps_t gps;
 
-    gps_set_callbacks(callback_GPRMC, callback_GPGGA, callback_GPVTG, callback_GPGSA, callback_GPGSV);
+    gps_init(&gps);
+    gps_set_callbacks(&gps, callback_GPRMC, callback_GPGGA, callback_GPVTG, callback_GPGSA, callback_GPGSV);
 
     QList<QSerialPortInfo> ports = QSerialPortInfo::availablePorts();
 
@@ -70,9 +72,9 @@ int main()
 
             if (buf.length() > 0)
             {
-                gps_add_data(buf.constData(), buf.length());
+                gps_add_data(&gps, buf.constData(), buf.length());
 
-                gps_process_data();
+                gps_process_data(&gps);
             }
         }
 
