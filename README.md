@@ -71,11 +71,11 @@ int main() {
 }
 ```
 
-## Build
+## Build from main branch
 The library includes a simple CMake build configuration:
 ```bash
-cd <root of the project>
-mkdir build
-cmake -Bbuild -G Ninja
-ninja -Cbuild
+git clone https://github.com/bokic/globaltop-gps.git
+cd globaltop-gps
+cmake -B build
+cmake --build build
 ```
