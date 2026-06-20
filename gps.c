@@ -189,10 +189,10 @@ void gps_process_data()
         {
             gps_buffer_copy(end > start? end - start + 2: end + GPS_BUFFER_SIZE - start + 2);
 
+            gps_buffer_processing_pointer = (end + 2) % GPS_BUFFER_SIZE;
+
             if (!gps_is_packet_valid(gps_command_buffer))
                 return;
-
-            gps_buffer_processing_pointer = (end + 2) % GPS_BUFFER_SIZE;
 
             if ((gps_callback_GPRMC)&&(strncmp(gps_command_buffer, "$GPRMC,", 7) == 0)) // Time, date, position, course, speed(RMC—Recommended Minimum Navigation Information)
             {
