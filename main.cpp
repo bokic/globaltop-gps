@@ -14,22 +14,22 @@
 
 using namespace std;
 
-void callback_GPRMC(double utc, char status, double latitude, char ns_indicator, double longitude, char ew_indicator, double ground_speed, double ground_course, int date, double magnetic_variation, char magnetic_variation_direction, char mode)
+void callback_GPRMC(uint32_t utc, char status, int32_t latitude, char ns_indicator, int32_t longitude, char ew_indicator, uint16_t ground_speed, uint16_t ground_course, uint32_t date, uint16_t magnetic_variation, char magnetic_variation_direction, char mode)
 {
     return;
 }
 
-void callback_GPGGA(double utc, double latitude, char ns_indicator, double longitude, char ew_indicator, char position_fix_indicator, int satelites_used, double hdop, double altitude, char altitude_units, double geoidal_separation, char geoidal_units, double age_of_diff_correction)
+void callback_GPGGA(uint32_t utc, int32_t latitude, char ns_indicator, int32_t longitude, char ew_indicator, char position_fix_indicator, uint8_t satelites_used, uint16_t hdop, int16_t altitude, char altitude_units, int16_t geoidal_separation, char geoidal_units, uint16_t age_of_diff_correction)
 {
     return;
 }
 
-void callback_GPVTG(double course1, char reference1, double course2, char reference2, double speed1, char unit1, double speed2, char unit2, char mode)
+void callback_GPVTG(uint16_t course1, char reference1, uint16_t course2, char reference2, uint16_t speed1, char unit1, uint16_t speed2, char unit2, char mode)
 {
     return;
 }
 
-void callback_GPGSA(char mode1, char mode2, char channels[12], double pdop, double hdop, double vdop)
+void callback_GPGSA(char mode1, char mode2, char channels[12], uint16_t pdop, uint16_t hdop, uint16_t vdop)
 {
     return;
 }
