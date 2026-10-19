@@ -184,7 +184,7 @@ char *_strtok_r(char *str, const char search[], char **saveptr)
         {
             char *ret = g_str;
             *saveptr = NULL;
-            if (strlen(ret) > 0)
+            if (*ret != '\0')
             {
                 return ret;
             }
@@ -338,13 +338,17 @@ void gps_process_data(gps_t *gps)
 
     while (1)
     {
+        // Snapshot append pointer before searching so we never discard a '$'
+        // that arrives via ISR after gps_buffer_indexOf() returns -1
+        int append_snapshot = gps->gps_buffer_append_pointer;
+
         // Ignore all leading characters that do not start with '$'
         int start = gps_buffer_indexOf(gps, "$");
 
         if (start < 0)
         {
-            // No '$' in buffer: discard any non-sentence noise accumulated so far
-            gps->gps_buffer_processing_pointer = gps->gps_buffer_append_pointer;
+            // No '$' in buffer up to append_snapshot: discard non-sentence noise
+            gps->gps_buffer_processing_pointer = append_snapshot;
             break;
         }
 
@@ -354,7 +358,7 @@ void gps_process_data(gps_t *gps)
 
         if (end < 0)
         {
-            // If buffer is full without "\r\n", drop the current '$' to prevent deadlock
+            // If a sentence exceeds GPS_COMMAND_SIZE without "\r\n", drop the '$' to prevent deadlock
             int occupied = gps->gps_buffer_append_pointer - start;
             if (occupied < 0)
             {
@@ -397,20 +401,20 @@ void gps_process_data(gps_t *gps)
 
                 pch = _strtok_r(gps->gps_command_buffer, ",", &saveptr);
 
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) utc = (uint32_t)parse_fixed_point(pch, 3);
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) status = pch[0];
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) lat_str = pch;
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) ns_indicator = pch[0];
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) lon_str = pch;
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) ew_indicator = pch[0];
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') utc = (uint32_t)parse_fixed_point(pch, 3);
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') status = pch[0];
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') lat_str = pch;
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') ns_indicator = pch[0];
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') lon_str = pch;
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') ew_indicator = pch[0];
                 if (lat_str) latitude = parse_nmea_coordinate(lat_str, ns_indicator);
                 if (lon_str) longitude = parse_nmea_coordinate(lon_str, ew_indicator);
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) ground_speed = (uint16_t)parse_fixed_point(pch, 2);
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) ground_course = (uint16_t)parse_fixed_point(pch, 2);
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) date = (uint32_t)atoi(pch);
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) magnetic_variation = (uint16_t)parse_fixed_point(pch, 2);
-                pch = _strtok_r(NULL, ",*", &saveptr); if ((pch)&&(strlen(pch) > 0)) magnetic_variation_direction = pch[0];
-                pch = _strtok_r(NULL, "*", &saveptr); if ((pch)&&(strlen(pch) > 0)) mode = pch[0];
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') ground_speed = (uint16_t)parse_fixed_point(pch, 2);
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') ground_course = (uint16_t)parse_fixed_point(pch, 2);
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') date = (uint32_t)atoi(pch);
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') magnetic_variation = (uint16_t)parse_fixed_point(pch, 2);
+                pch = _strtok_r(NULL, ",*", &saveptr); if (pch && *pch != '\0') magnetic_variation_direction = pch[0];
+                pch = _strtok_r(NULL, "*", &saveptr); if (pch && *pch != '\0') mode = pch[0];
 
                 gps->gps_callback_GPRMC(utc, status, latitude, ns_indicator, longitude, ew_indicator, ground_speed, ground_course, date, magnetic_variation, magnetic_variation_direction, mode);
             }
@@ -428,15 +432,15 @@ void gps_process_data(gps_t *gps)
 
                 pch = _strtok_r(gps->gps_command_buffer, ",", &saveptr);
 
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) course1 = (uint16_t)parse_fixed_point(pch, 2);
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) reference1 = pch[0];
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) course2 = (uint16_t)parse_fixed_point(pch, 2);
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) reference2 = pch[0];
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) speed1 = (uint16_t)parse_fixed_point(pch, 2);
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) unit1 = pch[0];
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) speed2 = (uint16_t)parse_fixed_point(pch, 2);
-                pch = _strtok_r(NULL, ",*", &saveptr); if ((pch)&&(strlen(pch) > 0)) unit2 = pch[0];
-                pch = _strtok_r(NULL, "*", &saveptr); if ((pch)&&(strlen(pch) > 0)) mode = pch[0];
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') course1 = (uint16_t)parse_fixed_point(pch, 2);
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') reference1 = pch[0];
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') course2 = (uint16_t)parse_fixed_point(pch, 2);
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') reference2 = pch[0];
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') speed1 = (uint16_t)parse_fixed_point(pch, 2);
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') unit1 = pch[0];
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') speed2 = (uint16_t)parse_fixed_point(pch, 2);
+                pch = _strtok_r(NULL, ",*", &saveptr); if (pch && *pch != '\0') unit2 = pch[0];
+                pch = _strtok_r(NULL, "*", &saveptr); if (pch && *pch != '\0') mode = pch[0];
 
                 gps->gps_callback_GPVTG(course1, reference1, course2, reference2, speed1, unit1, speed2, unit2, mode);
             }
@@ -460,21 +464,21 @@ void gps_process_data(gps_t *gps)
 
                 pch = _strtok_r(gps->gps_command_buffer, ",", &saveptr);
 
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) utc = (uint32_t)parse_fixed_point(pch, 3);
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) lat_str = pch;
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) ns_indicator = pch[0];
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) lon_str = pch;
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) ew_indicator = pch[0];
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') utc = (uint32_t)parse_fixed_point(pch, 3);
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') lat_str = pch;
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') ns_indicator = pch[0];
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') lon_str = pch;
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') ew_indicator = pch[0];
                 if (lat_str) latitude = parse_nmea_coordinate(lat_str, ns_indicator);
                 if (lon_str) longitude = parse_nmea_coordinate(lon_str, ew_indicator);
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) position_fix_indicator = pch[0];
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) satellites_used = (uint8_t)atoi(pch);
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) hdop = (uint16_t)parse_fixed_point(pch, 2);
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) altitude = (int16_t)parse_fixed_point(pch, 1);
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) altitude_units = pch[0];
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) geoidal_separation = (int16_t)parse_fixed_point(pch, 1);
-                pch = _strtok_r(NULL, ",*", &saveptr); if ((pch)&&(strlen(pch) > 0)) geoidal_units = pch[0];
-                pch = _strtok_r(NULL, ",*", &saveptr); if ((pch)&&(strlen(pch) > 0)) age_of_diff_correction = (uint16_t)parse_fixed_point(pch, 2);
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') position_fix_indicator = pch[0];
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') satellites_used = (uint8_t)atoi(pch);
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') hdop = (uint16_t)parse_fixed_point(pch, 2);
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') altitude = (int16_t)parse_fixed_point(pch, 1);
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') altitude_units = pch[0];
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') geoidal_separation = (int16_t)parse_fixed_point(pch, 1);
+                pch = _strtok_r(NULL, ",*", &saveptr); if (pch && *pch != '\0') geoidal_units = pch[0];
+                pch = _strtok_r(NULL, ",*", &saveptr); if (pch && *pch != '\0') age_of_diff_correction = (uint16_t)parse_fixed_point(pch, 2);
 
                 gps->gps_callback_GPGGA(utc, latitude, ns_indicator, longitude, ew_indicator, position_fix_indicator, satellites_used, hdop, altitude, altitude_units, geoidal_separation, geoidal_units, age_of_diff_correction);
             }
@@ -489,16 +493,16 @@ void gps_process_data(gps_t *gps)
 
                 pch = _strtok_r(gps->gps_command_buffer, ",", &saveptr);
 
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) mode1 = pch[0];
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) mode2 = pch[0];
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') mode1 = pch[0];
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') mode2 = pch[0];
                 for (int ch = 0; ch < 12; ch++)
                 {
                     pch = _strtok_r(NULL, ",", &saveptr);
-                    if ((pch)&&(strlen(pch) > 0)) channels[ch] = (char)atoi(pch);
+                    if (pch && *pch != '\0') channels[ch] = (char)atoi(pch);
                 }
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) pdop = (uint16_t)parse_fixed_point(pch, 2);
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) hdop = (uint16_t)parse_fixed_point(pch, 2);
-                pch = _strtok_r(NULL, ",*", &saveptr); if ((pch)&&(strlen(pch) > 0)) vdop = (uint16_t)parse_fixed_point(pch, 2);
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') pdop = (uint16_t)parse_fixed_point(pch, 2);
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') hdop = (uint16_t)parse_fixed_point(pch, 2);
+                pch = _strtok_r(NULL, ",*", &saveptr); if (pch && *pch != '\0') vdop = (uint16_t)parse_fixed_point(pch, 2);
 
                 gps->gps_callback_GPGSA(mode1, mode2, channels, pdop, hdop, vdop);
             }
@@ -513,15 +517,15 @@ void gps_process_data(gps_t *gps)
 
                 pch = _strtok_r(gps->gps_command_buffer, ",", &saveptr);
 
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) number_of_messages = (char)atoi(pch);
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) message_number = (char)atoi(pch);
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') number_of_messages = (char)atoi(pch);
+                pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') message_number = (char)atoi(pch);
 
                 for(int c = 0; c < 4; c++)
                 {
-                    pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) satelitte_id[c] = (char)atoi(pch);
-                    pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) elevation[c] = (char)atoi(pch);
-                    pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) azimuth[c] = (char)atoi(pch);
-                    pch = _strtok_r(NULL, ",*", &saveptr); if ((pch)&&(strlen(pch) > 0)) snr[c] = (char)atoi(pch);
+                    pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') satelitte_id[c] = (char)atoi(pch);
+                    pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') elevation[c] = (char)atoi(pch);
+                    pch = _strtok_r(NULL, ",", &saveptr); if (pch && *pch != '\0') azimuth[c] = (char)atoi(pch);
+                    pch = _strtok_r(NULL, ",*", &saveptr); if (pch && *pch != '\0') snr[c] = (char)atoi(pch);
                 }
 
                 gps->gps_callback_GPGSV(number_of_messages, message_number, satelitte_id, elevation, azimuth, snr);
