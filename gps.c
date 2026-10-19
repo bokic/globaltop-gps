@@ -11,7 +11,7 @@ static int32_t parse_fixed_point(const char *str, uint8_t decimals)
 {
     if (!str || *str == '\0') return 0;
 
-    int32_t val = 0;
+    int64_t val = 0;
     int sign = 1;
     const char *p = str;
 
@@ -43,7 +43,7 @@ static int32_t parse_fixed_point(const char *str, uint8_t decimals)
     if (*p == '.')
     {
         p++;
-        int32_t frac_val = 0;
+        int64_t frac_val = 0;
         uint8_t digits = 0;
         while (*p >= '0' && *p <= '9')
         {
@@ -63,7 +63,78 @@ static int32_t parse_fixed_point(const char *str, uint8_t decimals)
         val += frac_val;
     }
 
-    return val * sign;
+    val *= sign;
+    if (val > INT32_MAX) return INT32_MAX;
+    if (val < INT32_MIN) return INT32_MIN;
+    return (int32_t)val;
+}
+
+/**
+ * @brief Parse NMEA coordinate string ("DDMM.MMMM" or "DDDMM.MMMM") into
+ *        signed decimal degrees scaled by 10^7 (DD.DDDDDDD * 10^7) using
+ *        integer-only arithmetic.
+ */
+static int32_t parse_nmea_coordinate(const char *str, char hemisphere)
+{
+    if (!str || *str == '\0') return 0;
+
+    int sign = 1;
+    const char *p = str;
+
+    if (*p == '-')
+    {
+        sign = -1;
+        p++;
+    }
+    else if (*p == '+')
+    {
+        p++;
+    }
+
+    uint32_t deg_min = 0;
+    while (*p >= '0' && *p <= '9')
+    {
+        deg_min = deg_min * 10U + (uint32_t)(*p - '0');
+        p++;
+    }
+
+    uint32_t degrees = deg_min / 100U;
+    uint32_t min_whole = deg_min % 100U;
+
+    // Parse fractional minutes scaled to 10^5 (up to 5 decimal places)
+    uint32_t min_frac = 0;
+    uint8_t digits = 0;
+    if (*p == '.')
+    {
+        p++;
+        while (*p >= '0' && *p <= '9')
+        {
+            if (digits < 5)
+            {
+                min_frac = min_frac * 10U + (uint32_t)(*p - '0');
+                digits++;
+            }
+            p++;
+        }
+    }
+    while (digits < 5)
+    {
+        min_frac *= 10U;
+        digits++;
+    }
+
+    // Total minutes in units of 1e-5 min; convert to 1e-7 degrees:
+    // (total_min_1e5 / 60) * 100 = (total_min_1e5 * 5) / 3
+    uint32_t total_min_1e5 = min_whole * 100000U + min_frac;
+    uint32_t deg_frac_1e7 = (total_min_1e5 * 5U + 1U) / 3U;
+
+    int32_t scaled_deg = (int32_t)(degrees * 10000000U + deg_frac_1e7);
+    if (hemisphere == 'S' || hemisphere == 's' || hemisphere == 'W' || hemisphere == 'w')
+    {
+        sign = -sign;
+    }
+
+    return scaled_deg * sign;
 }
 
 bool gps_is_packet_valid(const char *packet)
@@ -129,7 +200,10 @@ int gps_buffer_indexOf(const gps_t *gps, const char str[])
 
     if (slen > 0)
     {
-        int occupied = gps->gps_buffer_append_pointer - gps->gps_buffer_processing_pointer;
+        int append_ptr = gps->gps_buffer_append_pointer;
+        int proc_ptr = gps->gps_buffer_processing_pointer;
+
+        int occupied = append_ptr - proc_ptr;
         if (occupied < 0)
         {
             occupied += GPS_BUFFER_SIZE;
@@ -147,7 +221,7 @@ int gps_buffer_indexOf(const gps_t *gps, const char str[])
 
             for(int c = 0; c < slen; c++)
             {
-                if (gps->gps_buffer[(gps->gps_buffer_processing_pointer + i + c) % GPS_BUFFER_SIZE] != str[c])
+                if (gps->gps_buffer[(proc_ptr + i + c) % GPS_BUFFER_SIZE] != str[c])
                 {
                     found = false;
                     break;
@@ -156,7 +230,7 @@ int gps_buffer_indexOf(const gps_t *gps, const char str[])
 
             if (found)
             {
-                return (gps->gps_buffer_processing_pointer + i) % GPS_BUFFER_SIZE;
+                return (proc_ptr + i) % GPS_BUFFER_SIZE;
             }
         }
     }
@@ -175,9 +249,10 @@ void gps_buffer_copy(gps_t *gps, int length)
             length = GPS_COMMAND_SIZE - 1;
         }
 
+        int proc_ptr = gps->gps_buffer_processing_pointer;
         for (int i = 0; i < length; i++)
         {
-            gps->gps_command_buffer[i] = gps->gps_buffer[(gps->gps_buffer_processing_pointer + i) % GPS_BUFFER_SIZE];
+            gps->gps_command_buffer[i] = gps->gps_buffer[(proc_ptr + i) % GPS_BUFFER_SIZE];
         }
     }
 }
@@ -208,14 +283,34 @@ void gps_add_data(gps_t *gps, const char buffer[], int len)
 {
     if (gps && len > 0)
     {
-        if (gps->gps_buffer_append_pointer + len >= GPS_BUFFER_SIZE)
+        int app_ptr = gps->gps_buffer_append_pointer;
+        int proc_ptr = gps->gps_buffer_processing_pointer;
+
+        int occupied = app_ptr - proc_ptr;
+        if (occupied < 0)
         {
-            int part1 = GPS_BUFFER_SIZE - gps->gps_buffer_append_pointer;
+            occupied += GPS_BUFFER_SIZE;
+        }
+
+        // Leave 1 byte empty to distinguish full from empty ring buffer
+        int free_space = (GPS_BUFFER_SIZE - 1) - occupied;
+        if (len > free_space)
+        {
+            len = free_space;
+        }
+        if (len <= 0)
+        {
+            return;
+        }
+
+        if (app_ptr + len >= GPS_BUFFER_SIZE)
+        {
+            int part1 = GPS_BUFFER_SIZE - app_ptr;
             int part2 = len - part1;
 
             if (part1 > 0)
             {
-                memcpy(gps->gps_buffer + gps->gps_buffer_append_pointer, buffer, (unsigned long)part1);
+                memcpy(gps->gps_buffer + app_ptr, buffer, (unsigned long)part1);
             }
 
             if (part2 > 0)
@@ -227,9 +322,9 @@ void gps_add_data(gps_t *gps, const char buffer[], int len)
         }
         else
         {
-            memcpy(gps->gps_buffer + gps->gps_buffer_append_pointer, buffer, (unsigned long)len);
+            memcpy(gps->gps_buffer + app_ptr, buffer, (unsigned long)len);
 
-            gps->gps_buffer_append_pointer = (gps->gps_buffer_append_pointer + len) % GPS_BUFFER_SIZE;
+            gps->gps_buffer_append_pointer = (app_ptr + len) % GPS_BUFFER_SIZE;
         }
     }
 }
@@ -248,6 +343,8 @@ void gps_process_data(gps_t *gps)
 
         if (start < 0)
         {
+            // No '$' in buffer: discard any non-sentence noise accumulated so far
+            gps->gps_buffer_processing_pointer = gps->gps_buffer_append_pointer;
             break;
         }
 
@@ -257,10 +354,21 @@ void gps_process_data(gps_t *gps)
 
         if (end < 0)
         {
+            // If buffer is full without "\r\n", drop the current '$' to prevent deadlock
+            int occupied = gps->gps_buffer_append_pointer - start;
+            if (occupied < 0)
+            {
+                occupied += GPS_BUFFER_SIZE;
+            }
+            if (occupied >= GPS_COMMAND_SIZE)
+            {
+                gps->gps_buffer_processing_pointer = (start + 1) % GPS_BUFFER_SIZE;
+                continue;
+            }
             break;
         }
 
-        gps_buffer_copy(gps, end > start? end - start + 2: end + GPS_BUFFER_SIZE - start + 2);
+        gps_buffer_copy(gps, end >= start ? end - start + 2 : end + GPS_BUFFER_SIZE - start + 2);
 
         gps->gps_buffer_processing_pointer = (end + 2) % GPS_BUFFER_SIZE;
 
@@ -284,15 +392,19 @@ void gps_process_data(gps_t *gps)
                 uint16_t magnetic_variation = 0;
                 char magnetic_variation_direction = 0;
                 char mode = 0;
+                const char *lat_str = NULL;
+                const char *lon_str = NULL;
 
                 pch = _strtok_r(gps->gps_command_buffer, ",", &saveptr);
 
                 pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) utc = (uint32_t)parse_fixed_point(pch, 3);
                 pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) status = pch[0];
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) latitude = parse_fixed_point(pch, 4);
+                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) lat_str = pch;
                 pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) ns_indicator = pch[0];
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) longitude = parse_fixed_point(pch, 4);
+                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) lon_str = pch;
                 pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) ew_indicator = pch[0];
+                if (lat_str) latitude = parse_nmea_coordinate(lat_str, ns_indicator);
+                if (lon_str) longitude = parse_nmea_coordinate(lon_str, ew_indicator);
                 pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) ground_speed = (uint16_t)parse_fixed_point(pch, 2);
                 pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) ground_course = (uint16_t)parse_fixed_point(pch, 2);
                 pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) date = (uint32_t)atoi(pch);
@@ -343,14 +455,18 @@ void gps_process_data(gps_t *gps)
                 int16_t geoidal_separation = 0;
                 char geoidal_units = 0;
                 uint16_t age_of_diff_correction = 0;
+                const char *lat_str = NULL;
+                const char *lon_str = NULL;
 
                 pch = _strtok_r(gps->gps_command_buffer, ",", &saveptr);
 
                 pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) utc = (uint32_t)parse_fixed_point(pch, 3);
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) latitude = parse_fixed_point(pch, 4);
+                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) lat_str = pch;
                 pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) ns_indicator = pch[0];
-                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) longitude = parse_fixed_point(pch, 4);
+                pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) lon_str = pch;
                 pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) ew_indicator = pch[0];
+                if (lat_str) latitude = parse_nmea_coordinate(lat_str, ns_indicator);
+                if (lon_str) longitude = parse_nmea_coordinate(lon_str, ew_indicator);
                 pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) position_fix_indicator = pch[0];
                 pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) satellites_used = (uint8_t)atoi(pch);
                 pch = _strtok_r(NULL, ",", &saveptr); if ((pch)&&(strlen(pch) > 0)) hdop = (uint16_t)parse_fixed_point(pch, 2);

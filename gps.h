@@ -21,8 +21,8 @@ extern "C"
     typedef struct {
         char gps_buffer[GPS_BUFFER_SIZE];
         char gps_command_buffer[GPS_COMMAND_SIZE];
-        int gps_buffer_append_pointer;
-        int gps_buffer_processing_pointer;
+        volatile int gps_buffer_append_pointer;
+        volatile int gps_buffer_processing_pointer;
 
         gps_callback_GPRMC_t gps_callback_GPRMC;
         gps_callback_GPGGA_t gps_callback_GPGGA;
